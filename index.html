@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Arduino Stream</title>
+  </head>
+  <body>
+    <h1>sSenzor vlhkosti pôdy</h1>
+    <button onclick="startStream()">Start sledovanie</button>
+    <hr />
+    <ul id="log"></ul>
+
+    <script>
+      let lastValue = "";
+
+      function startStream() {
+        // Check for new data every 1 second
+        setInterval(fetchData, 1000);
+      }
+
+      function fetchData() {
+        fetch("/get_reading")
+          .then((response) => response.json())
+          .then((data) => {
+            const log = document.getElementById("log");
+
+            // Only add to list if the value has changed or is new
+            const li = document.createElement("li");
+            li.innerText = "hodnota: " + data.moisture;
+            log.appendChild(li);
+
+            // Auto-scroll to bottom
+            window.scrollTo(0, document.body.scrollHeight);
+          });
+      }
+    </script>
+  </body>
+</html>
