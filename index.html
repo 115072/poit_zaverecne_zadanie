@@ -1,19 +1,48 @@
 <!doctype html>
 <html>
   <head>
-    <title>Arduino Stream</title>
+    <title>Arduino Control</title>
   </head>
   <body>
-    <h1>sSenzor vlhkosti pôdy</h1>
-    <button onclick="startStream()">Start sledovanie</button>
+    <h1>Moisture Control System</h1>
+
+    <div>
+      <strong>Regulačný limit:</strong>
+      <input type="number" id="limit-input" value="500" />
+      <button onclick="updateLimit()">Nastaviť limit</button>
+    </div>
+
     <hr />
+
+    <div style="border: 1px solid black; padding: 10px; width: 300px">
+      <p>Aktuálna vlhkosť: <span id="moisture-val">--</span></p>
+      <p>Aktívny Limit: <span id="active-limit">500</span></p>
+      <p>
+        <strong>Status pumpy: <span id="pump-status">--</span></strong>
+      </p>
+    </div>
+
+    <button onclick="startStream()">Start Monitorovanie</button>
+
+    <h3>Data Log:</h3>
     <ul id="log"></ul>
 
     <script>
-      let lastValue = "";
+      function updateLimit() {
+        const val = document.getElementById("limit-input").value;
+
+        fetch("/set_limit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: val }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            alert("Nový limit nastavený na: " + data.new_limit);
+          });
+      }
 
       function startStream() {
-        // Check for new data every 1 second
         setInterval(fetchData, 1000);
       }
 
@@ -21,15 +50,16 @@
         fetch("/get_reading")
           .then((response) => response.json())
           .then((data) => {
+            // Update the status boxes
+            document.getElementById("moisture-val").innerText = data.moisture;
+            document.getElementById("active-limit").innerText = data.limit;
+            document.getElementById("pump-status").innerText = data.pump;
+
+            // Update the log
             const log = document.getElementById("log");
-
-            // Only add to list if the value has changed or is new
             const li = document.createElement("li");
-            li.innerText = "hodnota: " + data.moisture;
-            log.appendChild(li);
-
-            // Auto-scroll to bottom
-            window.scrollTo(0, document.body.scrollHeight);
+            li.innerText = "Value: " + data.moisture + " | Pump: " + data.pump;
+            log.prepend(li); // Adds new data to the TOP
           });
       }
     </script>
