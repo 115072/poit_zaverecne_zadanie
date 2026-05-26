@@ -1,66 +1,122 @@
 <!doctype html>
 <html>
   <head>
-    <title>Arduino Graph</title>
-    <!-- Include Chart.js library -->
+    <title>Arduino Control Panel</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        background-color: #f0f0f0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /* Styles to make sections look like "Windows" */
+      .window {
+        background: white;
+        border: 2px solid #333;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px;
+        box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1);
+        width: 80%;
+        max-width: 600px;
+      }
+
+      .gauge-container {
+        text-align: center;
+        position: relative;
+      }
+      #needle-moisture {
+        transition: transform 0.5s ease-in-out;
+        transform-origin: 50% 90%;
+        stroke: blue;
+        stroke-width: 4;
+      }
+      #needle-limit {
+        transition: transform 0.5s ease-in-out;
+        transform-origin: 50% 90%;
+        stroke: red;
+        stroke-width: 3;
+        stroke-dasharray: 2;
+      }
+    </style>
   </head>
   <body>
-    <h1>Moisture Control & Graph</h1>
-
-    <div>
+    <!-- WINDOW 1: SETTINGS -->
+    <div class="window">
+      <h3>Nastavenia</h3>
       <strong>Regulačný limit:</strong>
       <input type="number" id="limit-input" value="500" />
       <button onclick="updateLimit()">Nastaviť limit</button>
+      <p>Pump Status: <strong id="pump-status">--</strong></p>
     </div>
 
-    <hr />
+    <!-- WINDOW 2: TACHOMETER (GAUGE) -->
+    <div class="window">
+      <h3>Tachometer (0 - 1023)</h3>
+      <div class="gauge-container">
+        <svg width="300" height="180" viewBox="0 0 200 120">
+          <!-- Gray background arc -->
+          <path
+            d="M20,100 A80,80 0 0,1 180,100"
+            fill="none"
+            stroke="#ddd"
+            stroke-width="20"
+          />
 
-    <!-- This is where the graph will live -->
-    <div style="width: 80%; margin: auto">
+          <!-- Red Limit Needle -->
+          <line id="needle-limit" x1="100" y1="100" x2="100" y2="30" />
+
+          <!-- Blue Moisture Needle -->
+          <line id="needle-moisture" x1="100" y1="100" x2="100" y2="20" />
+
+          <!-- Center Point -->
+          <circle cx="100" cy="100" r="5" fill="#333" />
+
+          <!-- Labels -->
+          <text x="15" y="115" font-size="10">0</text>
+          <text x="170" y="115" font-size="10">1023</text>
+        </svg>
+        <div>
+          <span style="color: blue">● Moisture</span>
+          <span style="color: red; margin-left: 20px">● Limit</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- WINDOW 3: GRAPH -->
+    <div class="window">
+      <h3>História merania</h3>
       <canvas id="myChart"></canvas>
+      <br />
+      <button onclick="startMonitoring()" style="width: 100%; padding: 10px">
+        Štart Monitoringu
+      </button>
     </div>
-
-    <hr />
-    <p>Pump Status: <strong id="pump-status">--</strong></p>
-    <button onclick="startStream()">Start Graphing</button>
 
     <script>
       // --- CHART SETUP ---
       const ctx = document.getElementById("myChart").getContext("2d");
-      const maxDataPoints = 30; // How many points to show on the graph at once
-
       const myChart = new Chart(ctx, {
         type: "line",
         data: {
-          labels: [], // Time/Labels go here
+          labels: [],
           datasets: [
+            { label: "Moisture", data: [], borderColor: "blue", tension: 0.1 },
             {
-              label: "Soil Moisture",
+              label: "Limit",
               data: [],
-              borderColor: "rgb(75, 192, 192)",
-              tension: 0.1,
-              fill: false,
-            },
-            {
-              label: "Regulation Limit",
-              data: [],
-              borderColor: "rgb(255, 99, 132)",
-              borderDash: [5, 5], // Makes the limit line dashed
-              pointRadius: 0, // Hides dots on the limit line
-              fill: false,
+              borderColor: "red",
+              borderDash: [5, 5],
+              pointRadius: 0,
             },
           ],
         },
-        options: {
-          scales: {
-            y: { beginAtZero: true, max: 1024 }, // Arduino analog is 0-1023
-          },
-          animation: false, // Disabling animation makes it look smoother for live data
-        },
+        options: { animation: false },
       });
 
-      // --- DATA FETCHING ---
       function updateLimit() {
         const val = document.getElementById("limit-input").value;
         fetch("/set_limit", {
@@ -70,7 +126,7 @@
         });
       }
 
-      function startStream() {
+      function startMonitoring() {
         setInterval(fetchData, 1000);
       }
 
@@ -80,23 +136,27 @@
           .then((data) => {
             document.getElementById("pump-status").innerText = data.pump;
 
-            // Add data to Chart
-            const now = new Date().toLocaleTimeString();
+            // 1. UPDATE TACHOMETER (Rotation math)
+            // Arduino range 0-1023 mapped to -90 to 90 degrees
+            const moistureDeg = (data.moisture / 1023) * 180 - 90;
+            const limitDeg = (data.limit / 1023) * 180 - 90;
 
-            // 1. Add new label (time)
+            document.getElementById("needle-moisture").style.transform =
+              `rotate(${moistureDeg}deg)`;
+            document.getElementById("needle-limit").style.transform =
+              `rotate(${limitDeg}deg)`;
+
+            // 2. UPDATE GRAPH
+            const now = new Date().toLocaleTimeString();
             myChart.data.labels.push(now);
-            // 2. Add moisture value
             myChart.data.datasets[0].data.push(data.moisture);
-            // 3. Add current limit line value
             myChart.data.datasets[1].data.push(data.limit);
 
-            // Keep only the last X points so the graph doesn't get too squished
-            if (myChart.data.labels.length > maxDataPoints) {
+            if (myChart.data.labels.length > 20) {
               myChart.data.labels.shift();
               myChart.data.datasets[0].data.shift();
               myChart.data.datasets[1].data.shift();
             }
-
             myChart.update();
           });
       }
