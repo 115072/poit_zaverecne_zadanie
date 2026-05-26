@@ -1,10 +1,12 @@
 <!doctype html>
 <html>
   <head>
-    <title>Arduino Control</title>
+    <title>Arduino Graph</title>
+    <!-- Include Chart.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
-    <h1>Moisture Control System</h1>
+    <h1>Moisture Control & Graph</h1>
 
     <div>
       <strong>Regulačný limit:</strong>
@@ -14,32 +16,58 @@
 
     <hr />
 
-    <div style="border: 1px solid black; padding: 10px; width: 300px">
-      <p>Aktuálna vlhkosť: <span id="moisture-val">--</span></p>
-      <p>Aktívny Limit: <span id="active-limit">500</span></p>
-      <p>
-        <strong>Status pumpy: <span id="pump-status">--</span></strong>
-      </p>
+    <!-- This is where the graph will live -->
+    <div style="width: 80%; margin: auto">
+      <canvas id="myChart"></canvas>
     </div>
 
-    <button onclick="startStream()">Start Monitorovanie</button>
-
-    <h3>Data Log:</h3>
-    <ul id="log"></ul>
+    <hr />
+    <p>Pump Status: <strong id="pump-status">--</strong></p>
+    <button onclick="startStream()">Start Graphing</button>
 
     <script>
+      // --- CHART SETUP ---
+      const ctx = document.getElementById("myChart").getContext("2d");
+      const maxDataPoints = 30; // How many points to show on the graph at once
+
+      const myChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: [], // Time/Labels go here
+          datasets: [
+            {
+              label: "Soil Moisture",
+              data: [],
+              borderColor: "rgb(75, 192, 192)",
+              tension: 0.1,
+              fill: false,
+            },
+            {
+              label: "Regulation Limit",
+              data: [],
+              borderColor: "rgb(255, 99, 132)",
+              borderDash: [5, 5], // Makes the limit line dashed
+              pointRadius: 0, // Hides dots on the limit line
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true, max: 1024 }, // Arduino analog is 0-1023
+          },
+          animation: false, // Disabling animation makes it look smoother for live data
+        },
+      });
+
+      // --- DATA FETCHING ---
       function updateLimit() {
         const val = document.getElementById("limit-input").value;
-
         fetch("/set_limit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ limit: val }),
-        })
-          .then((response) => response.json())
-          .then((data) => {
-            alert("Nový limit nastavený na: " + data.new_limit);
-          });
+        });
       }
 
       function startStream() {
@@ -50,16 +78,26 @@
         fetch("/get_reading")
           .then((response) => response.json())
           .then((data) => {
-            // Update the status boxes
-            document.getElementById("moisture-val").innerText = data.moisture;
-            document.getElementById("active-limit").innerText = data.limit;
             document.getElementById("pump-status").innerText = data.pump;
 
-            // Update the log
-            const log = document.getElementById("log");
-            const li = document.createElement("li");
-            li.innerText = "Value: " + data.moisture + " | Pump: " + data.pump;
-            log.prepend(li); // Adds new data to the TOP
+            // Add data to Chart
+            const now = new Date().toLocaleTimeString();
+
+            // 1. Add new label (time)
+            myChart.data.labels.push(now);
+            // 2. Add moisture value
+            myChart.data.datasets[0].data.push(data.moisture);
+            // 3. Add current limit line value
+            myChart.data.datasets[1].data.push(data.limit);
+
+            // Keep only the last X points so the graph doesn't get too squished
+            if (myChart.data.labels.length > maxDataPoints) {
+              myChart.data.labels.shift();
+              myChart.data.datasets[0].data.shift();
+              myChart.data.datasets[1].data.shift();
+            }
+
+            myChart.update();
           });
       }
     </script>

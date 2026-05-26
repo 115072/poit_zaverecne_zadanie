@@ -5,13 +5,11 @@ import threading
 
 app = Flask(__name__)
 
-# Config
 SERIAL_PORT = '/dev/ttyACM0'
 BAUD_RATE = 9600
 
-# Global variables
 latest_moisture = 0
-regulation_limit = 500  # Default value
+regulation_limit = 500
 pump_status = "OFF"
 
 def read_from_arduino():
@@ -19,25 +17,20 @@ def read_from_arduino():
     try:
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
         time.sleep(2)
-        print("Connected to Arduino!")
-        
         while True:
             if ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8').strip()
-                if line.isdigit(): # Ensure it's a number
+                if line and line.isdigit():
                     latest_moisture = int(line)
-                    
-                    # Logic for the Pump
+                    # Simple Pump Logic
                     if latest_moisture < regulation_limit:
-                        pump_status = "ON (Watering...)"
+                        pump_status = "ON"
                     else:
-                        pump_status = "OFF (Soil is wet enough)"
-                        
+                        pump_status = "OFF"
             time.sleep(0.1)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Serial error: {e}")
 
-# Start background thread
 thread = threading.Thread(target=read_from_arduino, daemon=True)
 thread.start()
 
@@ -57,11 +50,8 @@ def get_reading():
 def set_limit():
     global regulation_limit
     data = request.get_json()
-    new_limit = data.get('limit')
-    if new_limit is not None:
-        regulation_limit = int(new_limit)
-        return jsonify(status="success", new_limit=regulation_limit)
-    return jsonify(status="error"), 400
+    regulation_limit = int(data.get('limit', 500))
+    return jsonify(status="success", new_limit=regulation_limit)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
