@@ -1,230 +1,219 @@
 <!doctype html>
 <html>
   <head>
-    <title>Smart Garden Dashboard</title>
+    <title>Dashboard s Históriou</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        font-family: sans-serif;
         background: #f0f2f5;
-        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         padding: 20px;
-        color: #333;
       }
-
       .window {
         background: white;
         border-radius: 12px;
         padding: 20px;
-        margin: 15px auto;
-        width: 90%;
+        margin: 10px;
+        width: 95%;
         max-width: 600px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        text-align: center;
       }
 
-      h2,
-      h3 {
-        margin-top: 0;
-        color: #444;
+      /* Original Gauge needles */
+      #needle-moisture {
+        transition: transform 0.5s;
+        transform-origin: 100px 100px;
+        stroke: blue;
+        stroke-width: 4;
+      }
+      #needle-limit {
+        transition: transform 0.5s;
+        transform-origin: 100px 100px;
+        stroke: red;
+        stroke-width: 2;
+        stroke-dasharray: 4;
       }
 
       .status-on {
-        color: #dc3545;
+        color: red;
         font-weight: bold;
       }
       .status-off {
-        color: #28a745;
+        color: green;
         font-weight: bold;
       }
 
-      /* Tachometer Styling */
-      .gauge-container {
-        margin: 20px 0;
-      }
-      #needle-moisture {
-        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        transform-origin: 100px 100px;
-        stroke: #007bff;
-        stroke-width: 4;
-        stroke-linecap: round;
-      }
-      #needle-limit {
-        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        transform-origin: 100px 100px;
-        stroke: #dc3545;
-        stroke-width: 2;
-        stroke-dasharray: 4;
-        stroke-linecap: round;
-      }
-
-      /* Controls */
-      input[type="number"] {
-        padding: 8px;
-        border-radius: 5px;
-        border: 1px solid #ccc;
-        width: 80px;
-        font-size: 16px;
-      }
-
-      .btn-container {
-        display: flex;
-        gap: 10px;
-        margin-top: 15px;
-      }
-      button {
-        flex: 1;
-        padding: 12px;
-        border-radius: 5px;
-        border: none;
-        color: white;
-        font-size: 16px;
-        cursor: pointer;
-        transition: opacity 0.3s;
-      }
-
-      #btn-start {
+      .btn-start {
         background: #28a745;
+        color: white;
+        padding: 12px;
+        border: none;
+        cursor: pointer;
+        width: 100%;
+        border-radius: 5px;
+        font-size: 16px;
       }
-      #btn-stop {
+      .btn-stop {
         background: #dc3545;
+        color: white;
+        padding: 12px;
+        border: none;
+        cursor: pointer;
+        width: 100%;
+        border-radius: 5px;
+        font-size: 16px;
         display: none;
-      } /* Hidden by default */
-      button:disabled {
-        background: #ccc;
-        cursor: not-allowed;
       }
-      button:hover {
-        opacity: 0.8;
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 12px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 6px;
+        text-align: left;
+      }
+      select {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
       }
     </style>
   </head>
   <body>
+    <!-- 1. SETTINGS WINDOW -->
     <div class="window">
-      <h2>Nastavenia Systému</h2>
-      <div>
-        <label>Regulačný limit: </label>
-        <input type="number" id="limit-input" value="500" />
+      <h3>Nastavenia</h3>
+      Limit: <input type="number" id="limit-input" value="500" />
+      <button onclick="updateLimit()">Uložiť</button>
+      <p>Pumpa: <span id="pump-status">--</span></p>
+    </div>
+
+    <!-- 2. GAUGE WINDOW -->
+    <div class="window">
+      <h3>Tachometer</h3>
+      <svg viewBox="0 0 200 120" width="300">
+        <path
+          d="M20,100 A80,80 0 0,1 180,100"
+          fill="none"
+          stroke="#ccc"
+          stroke-width="20"
+        />
+        <text x="10" y="115" font-size="8">0</text>
+        <text x="175" y="115" font-size="8">1023</text>
+        <line
+          id="needle-limit"
+          x1="100"
+          y1="100"
+          x2="100"
+          y2="40"
+          transform="rotate(-90)"
+        />
+        <line
+          id="needle-moisture"
+          x1="100"
+          y1="100"
+          x2="100"
+          y2="30"
+          transform="rotate(-90)"
+        />
+      </svg>
+    </div>
+
+    <!-- 3. LIVE GRAPH WINDOW -->
+    <div class="window">
+      <h3>Live Graf</h3>
+      <canvas id="liveChart" height="150"></canvas>
+      <div style="margin-top: 15px">
         <button
-          onclick="updateLimit()"
-          style="background: #007bff; width: auto; flex: none"
+          id="startBtn"
+          class="btn-start"
+          onclick="toggleMonitoring(true)"
         >
-          Uložiť
+          Spustiť Monitoring & Ukladanie
         </button>
-      </div>
-      <p>Stav pumpy: <span id="pump-status" class="status-off">OFF</span></p>
-    </div>
-
-    <div class="window">
-      <h3>Tachometer Vlhkosti</h3>
-      <div class="gauge-container">
-        <svg viewBox="0 0 200 130" width="100%">
-          <path
-            d="M20,100 A80,80 0 0,1 180,100"
-            fill="none"
-            stroke="#eee"
-            stroke-width="20"
-          />
-          <text x="10" y="115" font-size="8" fill="#999">0</text>
-          <text x="175" y="115" font-size="8" fill="#999">1023</text>
-          <line
-            id="needle-limit"
-            x1="100"
-            y1="100"
-            x2="100"
-            y2="40"
-            transform="rotate(-90)"
-          />
-          <line
-            id="needle-moisture"
-            x1="100"
-            y1="100"
-            x2="100"
-            y2="30"
-            transform="rotate(-90)"
-          />
-          <circle cx="100" cy="100" r="4" fill="#444" />
-        </svg>
-      </div>
-    </div>
-
-    <div class="window">
-      <h3>Graf Vývoja</h3>
-      <canvas id="liveChart"></canvas>
-
-      <div class="btn-container">
-        <button id="btn-start" onclick="startMonitoring()">
-          Spustiť Monitoring
-        </button>
-        <button id="btn-stop" onclick="stopMonitoring()">
+        <button id="stopBtn" class="btn-stop" onclick="toggleMonitoring(false)">
           Zastaviť Monitoring
         </button>
       </div>
     </div>
 
-    <script>
-      let monitorInterval = null; // Variable to store the timer
+    <!-- 4. DATABASE HISTORY WINDOW -->
+    <div class="window">
+      <h3>História z MySQL</h3>
+      <button onclick="loadSessions()">Obnoviť zoznam sedení</button>
+      <select id="sessionSelect" onchange="loadSessionDetails()">
+        <option value="">-- Vyberte sedenie podľa ID a času --</option>
+      </select>
+      <div style="max-height: 250px; overflow-y: auto">
+        <table id="historyTable">
+          <thead>
+            <tr>
+              <th>Čas</th>
+              <th>Vlhkosť</th>
+              <th>Pumpa</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
 
+    <script>
+      let liveInterval = null;
       const ctx = document.getElementById("liveChart").getContext("2d");
       const chart = new Chart(ctx, {
         type: "line",
         data: {
           labels: [],
           datasets: [
+            { label: "Vlhkosť", data: [], borderColor: "blue", tension: 0.3 },
             {
-              label: "Vlhkosť pôdy",
+              label: "Limit",
               data: [],
-              borderColor: "#007bff",
-              tension: 0.3,
-              fill: false,
-            },
-            {
-              label: "Regulačný limit",
-              data: [],
-              borderColor: "#dc3545",
+              borderColor: "red",
               borderDash: [5, 5],
               pointRadius: 0,
-              tension: 0,
-              fill: false,
             },
           ],
         },
-        options: {
-          animation: false,
-          scales: { y: { beginAtZero: true, max: 1023 } },
-        },
+        options: { animation: false, scales: { y: { min: 0, max: 1023 } } },
       });
 
       function updateLimit() {
-        const val = document.getElementById("limit-input").value;
         fetch("/set_limit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ limit: val }),
+          body: JSON.stringify({
+            limit: document.getElementById("limit-input").value,
+          }),
         });
       }
 
-      function startMonitoring() {
-        if (monitorInterval) return; // Don't start if already running
-
-        // Start the timer (1 second)
-        monitorInterval = setInterval(fetchData, 1000);
-
-        // UI Changes
-        document.getElementById("btn-start").style.display = "none";
-        document.getElementById("btn-stop").style.display = "block";
+      function toggleMonitoring(start) {
+        const url = start ? "/start_monitoring" : "/stop_monitoring";
+        fetch(url, { method: "POST" }).then(() => {
+          if (start) {
+            document.getElementById("startBtn").style.display = "none";
+            document.getElementById("stopBtn").style.display = "block";
+            liveInterval = setInterval(fetchLive, 1000);
+          } else {
+            document.getElementById("startBtn").style.display = "block";
+            document.getElementById("stopBtn").style.display = "none";
+            clearInterval(liveInterval);
+          }
+        });
       }
 
-      function stopMonitoring() {
-        // Stop the timer
-        clearInterval(monitorInterval);
-        monitorInterval = null;
-
-        // UI Changes
-        document.getElementById("btn-start").style.display = "block";
-        document.getElementById("btn-stop").style.display = "none";
-      }
-
-      function fetchData() {
+      function fetchLive() {
         fetch("/get_data")
           .then((r) => r.json())
           .then((data) => {
@@ -243,7 +232,6 @@
             chart.data.labels.push(now);
             chart.data.datasets[0].data.push(data.moisture);
             chart.data.datasets[1].data.push(data.limit);
-
             if (chart.data.labels.length > 20) {
               chart.data.labels.shift();
               chart.data.datasets[0].data.shift();
@@ -252,6 +240,34 @@
             chart.update();
           });
       }
+
+      function loadSessions() {
+        fetch("/list_sessions")
+          .then((r) => r.json())
+          .then((data) => {
+            const sel = document.getElementById("sessionSelect");
+            sel.innerHTML = '<option value="">-- Vyberte sedenie --</option>';
+            data.forEach((s) => {
+              sel.innerHTML += `<option value="${s.id}">ID: ${s.id} | Start: ${s.start_time}</option>`;
+            });
+          });
+      }
+
+      function loadSessionDetails() {
+        const sid = document.getElementById("sessionSelect").value;
+        if (!sid) return;
+        fetch("/get_session_details/" + sid)
+          .then((r) => r.json())
+          .then((data) => {
+            const tbody = document.querySelector("#historyTable tbody");
+            tbody.innerHTML = "";
+            data.forEach((row) => {
+              tbody.innerHTML += `<tr><td>${row.timestamp}</td><td>${row.moisture}</td><td>${row.pump_state}</td></tr>`;
+            });
+          });
+      }
+
+      window.onload = loadSessions;
     </script>
   </body>
 </html>
