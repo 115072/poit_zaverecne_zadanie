@@ -1,11 +1,11 @@
 <!doctype html>
 <html>
   <head>
-    <title>Garden Dashboard - Multi-Graph</title>
+    <title>Garden Dashboard - Professional Gauge</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
-        font-family: sans-serif;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         background: #f0f2f5;
         display: flex;
         flex-direction: column;
@@ -15,26 +15,47 @@
       .window {
         background: white;
         border-radius: 12px;
-        padding: 20px;
+        padding: 25px;
         margin: 10px;
         width: 95%;
-        max-width: 700px;
+        max-width: 800px;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         text-align: center;
       }
+
+      /* GAUGE STYLING */
+      .gauge-container {
+        margin: 30px auto;
+        position: relative;
+        width: 100%;
+        max-width: 500px;
+      }
       #needle-moisture {
-        transition: transform 0.5s;
+        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         transform-origin: 100px 100px;
-        stroke: blue;
+        stroke: #007bff;
         stroke-width: 4;
+        stroke-linecap: round;
       }
       #needle-limit {
-        transition: transform 0.5s;
+        transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         transform-origin: 100px 100px;
-        stroke: red;
-        stroke-width: 2;
+        stroke: #dc3545;
+        stroke-width: 3;
         stroke-dasharray: 4;
+        stroke-linecap: round;
       }
+      .gauge-text {
+        font-size: 8px;
+        fill: #666;
+        font-weight: bold;
+      }
+      .gauge-tick {
+        stroke: #bbb;
+        stroke-width: 1;
+      }
+
+      /* BUTTONS & UI */
       .btn-pwr {
         background: #007bff;
         color: white;
@@ -44,6 +65,7 @@
         width: 100%;
         border-radius: 5px;
         font-weight: bold;
+        font-size: 18px;
       }
       .btn-start {
         background: #28a745;
@@ -53,6 +75,7 @@
         cursor: pointer;
         width: 100%;
         border-radius: 5px;
+        font-weight: bold;
       }
       .btn-stop {
         background: #dc3545;
@@ -62,79 +85,158 @@
         cursor: pointer;
         width: 100%;
         border-radius: 5px;
+        font-weight: bold;
         display: none;
       }
+
       table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 11px;
-        margin-top: 10px;
+        font-size: 12px;
+        margin-top: 15px;
       }
       th,
       td {
         border: 1px solid #ddd;
-        padding: 5px;
+        padding: 8px;
         text-align: left;
       }
       select {
         width: 100%;
-        padding: 10px;
+        padding: 12px;
         margin: 10px 0;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+      }
+      input[type="number"] {
+        padding: 8px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        width: 80px;
       }
     </style>
   </head>
   <body>
-    <div class="window" style="background: #e3f2fd">
-      <h2 id="hw-status">Hardvér: VYPNUTÝ</h2>
+    <!-- 1. POWER SWITCH -->
+    <div class="window" style="background: #e3f2fd; border: 2px solid #007bff">
+      <h2 id="hw-status" style="color: #007bff; margin-bottom: 15px">
+        Hardvér: VYPNUTÝ
+      </h2>
       <button id="pwrBtn" class="btn-pwr" onclick="toggleHW()">
         AKTIVOVAŤ HARDVÉR
       </button>
     </div>
 
-    <!-- LIVE WINDOW -->
+    <!-- 2. LIVE DASHBOARD -->
     <div class="window">
-      <h3>Live Monitoring</h3>
-      Limit: <input type="number" id="limit-input" value="500" />
-      <button onclick="updateLimit()">Uložiť</button>
-      <p>Moisture: <b id="m-val">0</b> | Pump: <b id="p-stat">OFF</b></p>
+      <h3>Live Monitoring & Kontrola</h3>
+      <div style="margin-bottom: 20px">
+        Limit: <input type="number" id="limit-input" value="500" />
+        <button
+          onclick="updateLimit()"
+          style="
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+          "
+        >
+          Uložiť
+        </button>
+      </div>
+
+      <p style="font-size: 18px">
+        Moisture: <b id="m-val" style="color: #007bff">0</b> | Pump:
+        <b id="p-stat">OFF</b>
+      </p>
+
+      <!-- LARGE GAUGE -->
+      <div class="gauge-container">
+        <svg viewBox="0 0 200 130" width="100%">
+          <!-- Background Arc -->
+          <path
+            d="M20,100 A80,80 0 0,1 180,100"
+            fill="none"
+            stroke="#e9ecef"
+            stroke-width="20"
+          />
+
+          <!-- Ticks and Numbers -->
+          <!-- 0 -->
+          <line class="gauge-tick" x1="20" y1="100" x2="30" y2="100" />
+          <text class="gauge-text" x="10" y="105">0</text>
+
+          <!-- 250 -->
+          <line class="gauge-tick" x1="44" y1="44" x2="52" y2="52" />
+          <text class="gauge-text" x="35" y="40">250</text>
+
+          <!-- 500 -->
+          <line class="gauge-tick" x1="100" y1="20" x2="100" y2="30" />
+          <text class="gauge-text" x="92" y="15">500</text>
+
+          <!-- 750 -->
+          <line class="gauge-tick" x1="156" y1="44" x2="148" y2="52" />
+          <text class="gauge-text" x="155" y="40">750</text>
+
+          <!-- 1023 -->
+          <line class="gauge-tick" x1="170" y1="100" x2="180" y2="100" />
+          <text class="gauge-text" x="175" y="105">1023</text>
+
+          <!-- Needles -->
+          <line
+            id="needle-limit"
+            x1="100"
+            y1="100"
+            x2="100"
+            y2="40"
+            transform="rotate(-90)"
+          />
+          <line
+            id="needle-moisture"
+            x1="100"
+            y1="100"
+            x2="100"
+            y2="30"
+            transform="rotate(-90)"
+          />
+
+          <!-- Center point -->
+          <circle cx="100" cy="100" r="5" fill="#343a40" />
+        </svg>
+        <div style="font-size: 12px; margin-top: 10px">
+          <span style="color: #007bff">● Aktuálna Vlhkosť</span>
+          <span style="color: #dc3545; margin-left: 20px"
+            >● Nastavený Limit (Dashed)</span
+          >
+        </div>
+      </div>
+
       <canvas id="liveChart" height="120"></canvas>
-      <svg viewBox="0 0 200 120" width="150">
-        <path
-          d="M20,100 A80,80 0 0,1 180,100"
-          fill="none"
-          stroke="#ccc"
-          stroke-width="20"
-        />
-        <line
-          id="needle-limit"
-          x1="100"
-          y1="100"
-          x2="100"
-          y2="40"
-          transform="rotate(-90)"
-        />
-        <line
-          id="needle-moisture"
-          x1="100"
-          y1="100"
-          x2="100"
-          y2="30"
-          transform="rotate(-90)"
-        />
-      </svg>
       <br />
-      <button id="startBtn" class="btn-start" onclick="toggleMon(true)">
-        Spustiť Monitoring
+      <button
+        id="startBtn"
+        class="btn-start"
+        onclick="toggleMon(true)"
+        style="margin-top: 15px"
+      >
+        Spustiť Monitoring (Ukladanie)
       </button>
-      <button id="stopBtn" class="btn-stop" onclick="toggleMon(false)">
+      <button
+        id="stopBtn"
+        class="btn-stop"
+        onclick="toggleMon(false)"
+        style="margin-top: 15px"
+      >
         Zastaviť Monitoring
       </button>
     </div>
 
-    <!-- MYSQL HISTORY WINDOW -->
-    <div class="window" style="border-left: 5px solid #007bff">
+    <!-- 3. MYSQL HISTORY -->
+    <div class="window" style="border-left: 6px solid #007bff">
       <h3>História: MySQL Databáza</h3>
-      <button onclick="loadSQL()">Obnoviť Zoznam</button>
+      <button onclick="loadSQL()">Obnoviť MySQL</button>
       <select id="sqlSel" onchange="loadSQLDetail()"></select>
       <canvas id="sqlChart" height="120"></canvas>
       <table id="sqlTab">
@@ -150,10 +252,10 @@
       </table>
     </div>
 
-    <!-- TXT HISTORY WINDOW -->
-    <div class="window" style="border-left: 5px solid #6c757d">
+    <!-- 4. TXT HISTORY -->
+    <div class="window" style="border-left: 6px solid #6c757d">
       <h3>História: .txt Súbor</h3>
-      <button onclick="loadTXT()">Obnoviť Zoznam</button>
+      <button onclick="loadTXT()">Obnoviť .txt</button>
       <select id="txtSel" onchange="loadTXTDetail()"></select>
       <canvas id="txtChart" height="120"></canvas>
       <table id="txtTab">
@@ -173,19 +275,26 @@
       let hwActive = false;
 
       // --- CHART GENERATOR HELPER ---
-      function createChart(id, label) {
+      function createChart(id) {
         return new Chart(document.getElementById(id).getContext("2d"), {
           type: "line",
           data: {
             labels: [],
             datasets: [
-              { label: "Vlhkosť", data: [], borderColor: "blue", tension: 0.3 },
+              {
+                label: "Vlhkosť",
+                data: [],
+                borderColor: "#007bff",
+                tension: 0.3,
+                fill: false,
+              },
               {
                 label: "Limit",
                 data: [],
-                borderColor: "red",
+                borderColor: "#dc3545",
                 borderDash: [5, 5],
                 pointRadius: 0,
+                fill: false,
               },
             ],
           },
@@ -220,11 +329,18 @@
           .then((data) => {
             document.getElementById("m-val").innerText = data.moisture;
             document.getElementById("p-stat").innerText = data.pump;
-            document.getElementById("needle-moisture").style.transform =
-              `rotate(${(data.moisture / 1023) * 180 - 90}deg)`;
-            document.getElementById("needle-limit").style.transform =
-              `rotate(${(data.limit / 1023) * 180 - 90}deg)`;
+            document.getElementById("p-stat").style.color =
+              data.pump === "ON" ? "red" : "green";
 
+            // Update Large Gauge Needles
+            const mDeg = (data.moisture / 1023) * 180 - 90;
+            const lDeg = (data.limit / 1023) * 180 - 90;
+            document.getElementById("needle-moisture").style.transform =
+              `rotate(${mDeg}deg)`;
+            document.getElementById("needle-limit").style.transform =
+              `rotate(${lDeg}deg)`;
+
+            // Update Live Graph
             updateGraph(
               liveChart,
               new Date().toLocaleTimeString(),
@@ -247,7 +363,7 @@
         chartObj.update();
       }
 
-      // --- MYSQL LOADING ---
+      // --- DATA LOADING ---
       function loadSQL() {
         fetch("/list_sessions")
           .then((r) => r.json())
@@ -255,7 +371,7 @@
             let s = document.getElementById("sqlSel");
             s.innerHTML = "<option>-- Vyberte MySQL Sedenie --</option>";
             data.forEach((x) => {
-              s.innerHTML += `<option value="${x.id}">ID: ${x.id} | ${x.start_time}</option>`;
+              s.innerHTML += `<option value="${x.id}">Sedenie ID: ${x.id} | ${x.start_time}</option>`;
             });
           });
       }
@@ -282,7 +398,6 @@
           });
       }
 
-      // --- TXT LOADING ---
       function loadTXT() {
         fetch("/list_txt_sessions")
           .then((r) => r.json())
