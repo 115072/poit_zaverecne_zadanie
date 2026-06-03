@@ -1,26 +1,35 @@
 const int sensorPin = A0;
 const int pumpPin = 8;
+bool hardwareActive = false;
 
 void setup() {
   Serial.begin(9600);
   pinMode(pumpPin, OUTPUT);
-  digitalWrite(pumpPin, LOW); // Start with pump OFF
+  digitalWrite(pumpPin, LOW); 
 }
 
 void loop() {
-  // 1. Send moisture reading to Python
-  int sensorValue = analogRead(sensorPin);
-  Serial.println(sensorValue);
-
-  // 2. Listen for Pump Commands from Python
   if (Serial.available() > 0) {
-    char command = Serial.read();
-    if (command == '1') {
-      digitalWrite(pumpPin, HIGH); // Transistor ON
-    } else if (command == '0') {
-      digitalWrite(pumpPin, LOW);  // Transistor OFF
+    char cmd = Serial.read();
+    
+    if (cmd == 'A') { hardwareActive = true; }   // A = Activate
+    if (cmd == 'Q') {                            // Q = Quit/Deactivate
+        hardwareActive = false; 
+        digitalWrite(pumpPin, LOW); 
+    }
+    
+    // Pump logic (only works if active)
+    if (hardwareActive) {
+        if (cmd == '1') digitalWrite(pumpPin, HIGH);
+        if (cmd == '0') digitalWrite(pumpPin, LOW);
     }
   }
+
+  // Only send data if active
+  if (hardwareActive) {
+    int sensorValue = analogRead(sensorPin);
+    Serial.println(sensorValue);
+  }
   
-  delay(500); // 0.5 second updates
+  delay(500);
 }

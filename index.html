@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>Garden Dashboard TXT/DB</title>
+    <title>Garden Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
@@ -35,10 +35,20 @@
         stroke-width: 2;
         stroke-dasharray: 4;
       }
+      .btn-pwr {
+        background: #007bff;
+        color: white;
+        padding: 15px;
+        border: none;
+        cursor: pointer;
+        width: 100%;
+        border-radius: 5px;
+        font-weight: bold;
+      }
       .btn-start {
         background: #28a745;
         color: white;
-        padding: 12px;
+        padding: 10px;
         border: none;
         cursor: pointer;
         width: 100%;
@@ -47,7 +57,7 @@
       .btn-stop {
         background: #dc3545;
         color: white;
-        padding: 12px;
+        padding: 10px;
         border: none;
         cursor: pointer;
         width: 100%;
@@ -57,8 +67,8 @@
       table {
         width: 100%;
         border-collapse: collapse;
-        margin-top: 10px;
         font-size: 11px;
+        margin-top: 10px;
       }
       th,
       td {
@@ -66,24 +76,43 @@
         padding: 5px;
         text-align: left;
       }
-      select {
-        width: 100%;
-        padding: 10px;
-        margin: 5px 0;
-      }
     </style>
   </head>
   <body>
+    <div class="window" style="background: #e3f2fd">
+      <h2 id="hw-status">Hardvér: VYPNUTÝ</h2>
+      <button id="pwrBtn" class="btn-pwr" onclick="toggleHW()">
+        AKTIVOVAŤ HARDVÉR
+      </button>
+    </div>
+
     <div class="window">
-      <h3>Nastavenia</h3>
+      <h3>Nastavenia & Live</h3>
       Limit: <input type="number" id="limit-input" value="500" />
       <button onclick="updateLimit()">Uložiť</button>
-      <p>Pumpa: <span id="pump-status">--</span></p>
+      <p>Moisture: <b id="m-val">0</b> | Pump: <b id="p-stat">OFF</b></p>
+      <canvas id="liveChart" height="150"></canvas>
+      <button
+        id="startBtn"
+        class="btn-start"
+        onclick="toggleMon(true)"
+        style="margin-top: 10px"
+      >
+        Spustiť Monitoring
+      </button>
+      <button
+        id="stopBtn"
+        class="btn-stop"
+        onclick="toggleMon(false)"
+        style="margin-top: 10px"
+      >
+        Zastaviť Monitoring
+      </button>
     </div>
 
     <div class="window">
       <h3>Tachometer</h3>
-      <svg viewBox="0 0 200 120" width="300">
+      <svg viewBox="0 0 200 120" width="250">
         <path
           d="M20,100 A80,80 0 0,1 180,100"
           fill="none"
@@ -110,22 +139,14 @@
     </div>
 
     <div class="window">
-      <h3>Live Graf</h3>
-      <canvas id="liveChart" height="150"></canvas>
-      <button id="startBtn" class="btn-start" onclick="toggleMonitoring(true)">
-        Štart Monitoring
-      </button>
-      <button id="stopBtn" class="btn-stop" onclick="toggleMonitoring(false)">
-        Zastaviť Monitoring
-      </button>
-    </div>
-
-    <!-- WINDOW 4: MYSQL -->
-    <div class="window">
-      <h3>História z MySQL Databázy</h3>
-      <button onclick="loadSessions()">Obnoviť MySQL</button>
-      <select id="sessionSelect" onchange="loadSessionDetails()"></select>
-      <table id="historyTable">
+      <h3>MySQL História</h3>
+      <button onclick="loadSQL()">Obnoviť MySQL</button>
+      <select
+        id="sqlSel"
+        onchange="loadSQLDetail()"
+        style="width: 100%; margin: 10px 0"
+      ></select>
+      <table id="sqlTab">
         <thead>
           <tr>
             <th>Čas</th>
@@ -137,12 +158,15 @@
       </table>
     </div>
 
-    <!-- WINDOW 5: TXT FILE -->
     <div class="window">
-      <h3>História z .txt súboru (JSON riadky)</h3>
-      <button onclick="loadTxtSessions()">Obnoviť .txt zoznam</button>
-      <select id="txtSelect" onchange="loadTxtDetail()"></select>
-      <table id="txtTable">
+      <h3>.txt História</h3>
+      <button onclick="loadTXT()">Obnoviť .txt</button>
+      <select
+        id="txtSel"
+        onchange="loadTXTDetail()"
+        style="width: 100%; margin: 10px 0"
+      ></select>
+      <table id="txtTab">
         <thead>
           <tr>
             <th>Čas</th>
@@ -155,50 +179,52 @@
     </div>
 
     <script>
-      let liveInterval = null;
+      let hwActive = false;
       const ctx = document.getElementById("liveChart").getContext("2d");
       const chart = new Chart(ctx, {
         type: "line",
         data: {
           labels: [],
           datasets: [
-            { label: "Vlhkosť", data: [], borderColor: "blue", tension: 0.3 },
+            { label: "Vlhkosť", data: [], borderColor: "blue" },
             {
               label: "Limit",
               data: [],
               borderColor: "red",
               borderDash: [5, 5],
-              pointRadius: 0,
             },
           ],
         },
         options: { animation: false, scales: { y: { min: 0, max: 1023 } } },
       });
 
-      function updateLimit() {
-        fetch("/set_limit", {
+      function toggleHW() {
+        hwActive = !hwActive;
+        fetch("/toggle_hardware", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            limit: document.getElementById("limit-input").value,
-          }),
+          body: JSON.stringify({ enabled: hwActive }),
         });
+        document.getElementById("pwrBtn").innerText = hwActive
+          ? "DEAKTIVOVAŤ HARDVÉR"
+          : "AKTIVOVAŤ HARDVÉR";
+        document.getElementById("hw-status").innerText = hwActive
+          ? "Hardvér: AKTÍVNY"
+          : "Hardvér: VYPNUTÝ";
+        if (hwActive) setInterval(fetchLive, 1000);
+        else location.reload();
       }
 
-      function toggleMonitoring(start) {
-        const url = start ? "/start_monitoring" : "/stop_monitoring";
-        fetch(url, { method: "POST" }).then(() => {
-          if (start) {
-            document.getElementById("startBtn").style.display = "none";
-            document.getElementById("stopBtn").style.display = "block";
-            liveInterval = setInterval(fetchLive, 1000);
-          } else {
-            document.getElementById("startBtn").style.display = "block";
-            document.getElementById("stopBtn").style.display = "none";
-            clearInterval(liveInterval);
-            loadSessions();
-            loadTxtSessions();
-          }
+      function toggleMon(s) {
+        fetch(s ? "/start_monitoring" : "/stop_monitoring", {
+          method: "POST",
+        }).then(() => {
+          document.getElementById("startBtn").style.display = s
+            ? "none"
+            : "block";
+          document.getElementById("stopBtn").style.display = s
+            ? "block"
+            : "none";
         });
       }
 
@@ -206,15 +232,13 @@
         fetch("/get_data")
           .then((r) => r.json())
           .then((data) => {
-            document.getElementById("pump-status").innerText = data.pump;
-            const mDeg = (data.moisture / 1023) * 180 - 90;
-            const lDeg = (data.limit / 1023) * 180 - 90;
+            document.getElementById("m-val").innerText = data.moisture;
+            document.getElementById("p-stat").innerText = data.pump;
             document.getElementById("needle-moisture").style.transform =
-              `rotate(${mDeg}deg)`;
+              `rotate(${(data.moisture / 1023) * 180 - 90}deg)`;
             document.getElementById("needle-limit").style.transform =
-              `rotate(${lDeg}deg)`;
-            const now = new Date().toLocaleTimeString();
-            chart.data.labels.push(now);
+              `rotate(${(data.limit / 1023) * 180 - 90}deg)`;
+            chart.data.labels.push(new Date().toLocaleTimeString());
             chart.data.datasets[0].data.push(data.moisture);
             chart.data.datasets[1].data.push(data.limit);
             if (chart.data.labels.length > 20) {
@@ -226,61 +250,66 @@
           });
       }
 
-      // --- MYSQL HELPERS ---
-      function loadSessions() {
+      function loadSQL() {
         fetch("/list_sessions")
           .then((r) => r.json())
           .then((data) => {
-            const sel = document.getElementById("sessionSelect");
-            sel.innerHTML =
-              '<option value="">-- Vyberte MySQL sedenie --</option>';
-            data.forEach((s) => {
-              sel.innerHTML += `<option value="${s.id}">ID: ${s.id} | ${s.start_time}</option>`;
-            });
-          });
-      }
-      function loadSessionDetails() {
-        const sid = document.getElementById("sessionSelect").value;
-        fetch("/get_session_details/" + sid)
-          .then((r) => r.json())
-          .then((data) => {
-            const tbody = document.querySelector("#historyTable tbody");
-            tbody.innerHTML = "";
-            data.forEach((row) => {
-              tbody.innerHTML += `<tr><td>${row.timestamp}</td><td>${row.moisture}</td><td>${row.pump_state}</td></tr>`;
+            let s = document.getElementById("sqlSel");
+            s.innerHTML = "<option>-- Vyberte --</option>";
+            data.forEach((x) => {
+              s.innerHTML += `<option value="${x.id}">ID: ${x.id} | ${x.start_time}</option>`;
             });
           });
       }
 
-      // --- TXT HELPERS ---
-      function loadTxtSessions() {
+      function loadSQLDetail() {
+        fetch("/get_session_details/" + document.getElementById("sqlSel").value)
+          .then((r) => r.json())
+          .then((data) => {
+            let b = document.querySelector("#sqlTab tbody");
+            b.innerHTML = "";
+            data.forEach((r) => {
+              b.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.moisture}</td><td>${r.pump_state}</td></tr>`;
+            });
+          });
+      }
+
+      function loadTXT() {
         fetch("/list_txt_sessions")
           .then((r) => r.json())
           .then((data) => {
-            const sel = document.getElementById("txtSelect");
-            sel.innerHTML =
-              '<option value="">-- Vyberte riadok z TXT --</option>';
-            data.forEach((s) => {
-              sel.innerHTML += `<option value="${s.index}">Riadok ${s.index} (Sedenie ${s.id}) - ${s.date}</option>`;
-            });
-          });
-      }
-      function loadTxtDetail() {
-        const idx = document.getElementById("txtSelect").value;
-        fetch("/get_txt_detail/" + idx)
-          .then((r) => r.json())
-          .then((data) => {
-            const tbody = document.querySelector("#txtTable tbody");
-            tbody.innerHTML = "";
-            data.readings.forEach((row) => {
-              tbody.innerHTML += `<tr><td>${row.timestamp}</td><td>${row.moisture}</td><td>${row.pump}</td></tr>`;
+            let s = document.getElementById("txtSel");
+            s.innerHTML = "<option>-- Vyberte --</option>";
+            data.forEach((x) => {
+              s.innerHTML += `<option value="${x.index}">Riadok ${x.index} | ${x.date}</option>`;
             });
           });
       }
 
-      window.onload = function () {
-        loadSessions();
-        loadTxtSessions();
+      function loadTXTDetail() {
+        fetch("/get_txt_detail/" + document.getElementById("txtSel").value)
+          .then((r) => r.json())
+          .then((data) => {
+            let b = document.querySelector("#txtTab tbody");
+            b.innerHTML = "";
+            data.readings.forEach((r) => {
+              b.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.moisture}</td><td>${r.pump}</td></tr>`;
+            });
+          });
+      }
+
+      function updateLimit() {
+        fetch("/set_limit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            limit: document.getElementById("limit-input").value,
+          }),
+        });
+      }
+      window.onload = () => {
+        loadSQL();
+        loadTXT();
       };
     </script>
   </body>
