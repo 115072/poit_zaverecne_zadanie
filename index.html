@@ -1,164 +1,259 @@
 <!doctype html>
 <html>
   <head>
-    <title>Arduino Control Panel</title>
+    <title>Smart Garden Dashboard</title>
+    <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
-        font-family: sans-serif;
-        background-color: #f0f0f0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f0f2f5;
+        text-align: center;
+        padding: 20px;
+        color: #333;
       }
 
-      /* Styles to make sections look like "Windows" */
+      /* Dashboard Window Styles */
       .window {
         background: white;
-        border: 2px solid #333;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 20px;
-        margin: 10px;
-        box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.1);
-        width: 80%;
+        margin: 15px auto;
+        width: 90%;
         max-width: 600px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
       }
 
+      h2,
+      h3 {
+        margin-top: 0;
+        color: #444;
+      }
+
+      /* Status Colors */
+      .status-on {
+        color: #dc3545;
+        font-weight: bold;
+      } /* Red for Pump ON */
+      .status-off {
+        color: #28a745;
+        font-weight: bold;
+      } /* Green for Pump OFF */
+
+      /* Tachometer Styling */
       .gauge-container {
-        text-align: center;
-        position: relative;
+        margin: 20px 0;
       }
       #needle-moisture {
-        transition: transform 0.5s ease-in-out;
-        transform-origin: 50% 90%;
-        stroke: blue;
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        transform-origin: 100px 100px;
+        stroke: #007bff;
         stroke-width: 4;
+        stroke-linecap: round;
       }
       #needle-limit {
-        transition: transform 0.5s ease-in-out;
-        transform-origin: 50% 90%;
-        stroke: red;
-        stroke-width: 3;
-        stroke-dasharray: 2;
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        transform-origin: 100px 100px;
+        stroke: #dc3545;
+        stroke-width: 2;
+        stroke-dasharray: 4;
+        stroke-linecap: round;
+      }
+
+      /* Controls */
+      input[type="number"] {
+        padding: 8px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        width: 80px;
+        font-size: 16px;
+      }
+
+      button {
+        padding: 10px 20px;
+        border-radius: 5px;
+        border: none;
+        background: #007bff;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+
+      button:hover {
+        background: #0056b3;
+      }
+      .btn-start {
+        background: #28a745;
+        width: 100%;
+        margin-top: 10px;
+      }
+      .btn-start:hover {
+        background: #218838;
       }
     </style>
   </head>
   <body>
-    <!-- WINDOW 1: SETTINGS -->
+    <!-- SECTION 1: SETTINGS & STATUS -->
     <div class="window">
-      <h3>Nastavenia</h3>
-      <strong>Regulačný limit:</strong>
-      <input type="number" id="limit-input" value="500" />
-      <button onclick="updateLimit()">Nastaviť limit</button>
-      <p>Pump Status: <strong id="pump-status">--</strong></p>
+      <h2>Nastavenia Systému</h2>
+      <div style="margin-bottom: 15px">
+        <label>Regulačný limit: </label>
+        <input type="number" id="limit-input" value="500" />
+        <button onclick="updateLimit()">Uložiť</button>
+      </div>
+      <p>Stav pumpy: <span id="pump-status" class="status-off">OFF</span></p>
     </div>
 
-    <!-- WINDOW 2: TACHOMETER (GAUGE) -->
+    <!-- SECTION 2: TACHOMETER (GAUGE) -->
     <div class="window">
-      <h3>Tachometer (0 - 1023)</h3>
+      <h3>Tachometer Vlhkosti</h3>
       <div class="gauge-container">
-        <svg width="300" height="180" viewBox="0 0 200 120">
-          <!-- Gray background arc -->
+        <svg viewBox="0 0 200 130" width="100%">
+          <!-- Background Arc -->
           <path
             d="M20,100 A80,80 0 0,1 180,100"
             fill="none"
-            stroke="#ddd"
+            stroke="#eee"
             stroke-width="20"
           />
 
-          <!-- Red Limit Needle -->
-          <line id="needle-limit" x1="100" y1="100" x2="100" y2="30" />
-
-          <!-- Blue Moisture Needle -->
-          <line id="needle-moisture" x1="100" y1="100" x2="100" y2="20" />
-
-          <!-- Center Point -->
-          <circle cx="100" cy="100" r="5" fill="#333" />
-
           <!-- Labels -->
-          <text x="15" y="115" font-size="10">0</text>
-          <text x="170" y="115" font-size="10">1023</text>
+          <text x="10" y="115" font-size="8" fill="#999">0</text>
+          <text x="45" y="45" font-size="8" fill="#999">250</text>
+          <text x="95" y="25" font-size="8" fill="#999">500</text>
+          <text x="145" y="45" font-size="8" fill="#999">750</text>
+          <text x="175" y="115" font-size="8" fill="#999">1023</text>
+
+          <!-- Needles -->
+          <line
+            id="needle-limit"
+            x1="100"
+            y1="100"
+            x2="100"
+            y2="40"
+            transform="rotate(-90)"
+          />
+          <line
+            id="needle-moisture"
+            x1="100"
+            y1="100"
+            x2="100"
+            y2="30"
+            transform="rotate(-90)"
+          />
+
+          <!-- Center point -->
+          <circle cx="100" cy="100" r="4" fill="#444" />
         </svg>
-        <div>
-          <span style="color: blue">● Moisture</span>
-          <span style="color: red; margin-left: 20px">● Limit</span>
+        <div style="font-size: 12px; margin-top: 10px">
+          <span style="color: #007bff">● Vlhkosť</span>
+          <span style="color: #dc3545; margin-left: 20px"
+            >● Limit (Dashed)</span
+          >
         </div>
       </div>
     </div>
 
-    <!-- WINDOW 3: GRAPH -->
+    <!-- SECTION 3: LIVE GRAPH -->
     <div class="window">
-      <h3>História merania</h3>
-      <canvas id="myChart"></canvas>
-      <br />
-      <button onclick="startMonitoring()" style="width: 100%; padding: 10px">
-        Štart Monitoringu
+      <h3>Graf Vývoja</h3>
+      <canvas id="liveChart"></canvas>
+      <button class="btn-start" onclick="startMonitoring()">
+        Spustiť Monitoring
       </button>
     </div>
 
     <script>
-      // --- CHART SETUP ---
-      const ctx = document.getElementById("myChart").getContext("2d");
-      const myChart = new Chart(ctx, {
+      // --- 1. INITIALIZE CHART.JS ---
+      const ctx = document.getElementById("liveChart").getContext("2d");
+      const chart = new Chart(ctx, {
         type: "line",
         data: {
           labels: [],
           datasets: [
-            { label: "Moisture", data: [], borderColor: "blue", tension: 0.1 },
             {
-              label: "Limit",
+              label: "Vlhkosť pôdy",
               data: [],
-              borderColor: "red",
+              borderColor: "#007bff",
+              backgroundColor: "rgba(0, 123, 255, 0.1)",
+              tension: 0.3,
+              fill: true,
+            },
+            {
+              label: "Regulačný limit",
+              data: [],
+              borderColor: "#dc3545",
               borderDash: [5, 5],
               pointRadius: 0,
+              tension: 0,
+              fill: false,
             },
           ],
         },
-        options: { animation: false },
+        options: {
+          animation: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 1023, // Force Y-axis to Arduino Range
+              title: { display: true, text: "Analogová Hodnota" },
+            },
+          },
+        },
       });
 
+      // --- 2. UPDATE LIMIT (POST TO PYTHON) ---
       function updateLimit() {
         const val = document.getElementById("limit-input").value;
         fetch("/set_limit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ limit: val }),
-        });
+        }).then(() => console.log("Limit updated to: " + val));
       }
 
+      // --- 3. START LOOP ---
       function startMonitoring() {
         setInterval(fetchData, 1000);
+        document.querySelector(".btn-start").disabled = true;
+        document.querySelector(".btn-start").innerText = "Monitoring beží...";
+        document.querySelector(".btn-start").style.background = "#ccc";
       }
 
+      // --- 4. FETCH DATA FROM FLASK ---
       function fetchData() {
-        fetch("/get_reading")
+        fetch("/get_data")
           .then((response) => response.json())
           .then((data) => {
-            document.getElementById("pump-status").innerText = data.pump;
+            // Update Status Text
+            const ps = document.getElementById("pump-status");
+            ps.innerText = data.pump;
+            ps.className = data.pump === "ON" ? "status-on" : "status-off";
 
-            // 1. UPDATE TACHOMETER (Rotation math)
-            // Arduino range 0-1023 mapped to -90 to 90 degrees
-            const moistureDeg = (data.moisture / 1023) * 180 - 90;
-            const limitDeg = (data.limit / 1023) * 180 - 90;
-
+            // Update Tachometer Needles (-90 to 90 degrees)
+            const mDeg = (data.moisture / 1023) * 180 - 90;
+            const lDeg = (data.limit / 1023) * 180 - 90;
             document.getElementById("needle-moisture").style.transform =
-              `rotate(${moistureDeg}deg)`;
+              `rotate(${mDeg}deg)`;
             document.getElementById("needle-limit").style.transform =
-              `rotate(${limitDeg}deg)`;
+              `rotate(${lDeg}deg)`;
 
-            // 2. UPDATE GRAPH
+            // Update Graph Data
             const now = new Date().toLocaleTimeString();
-            myChart.data.labels.push(now);
-            myChart.data.datasets[0].data.push(data.moisture);
-            myChart.data.datasets[1].data.push(data.limit);
+            chart.data.labels.push(now);
+            chart.data.datasets[0].data.push(data.moisture);
+            chart.data.datasets[1].data.push(data.limit);
 
-            if (myChart.data.labels.length > 20) {
-              myChart.data.labels.shift();
-              myChart.data.datasets[0].data.shift();
-              myChart.data.datasets[1].data.shift();
+            // Keep only last 20 points
+            if (chart.data.labels.length > 20) {
+              chart.data.labels.shift();
+              chart.data.datasets[0].data.shift();
+              chart.data.datasets[1].data.shift();
             }
-            myChart.update();
-          });
+            chart.update();
+          })
+          .catch((err) => console.error("Error fetching data:", err));
       }
     </script>
   </body>
