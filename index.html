@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>Dashboard s Históriou</title>
+    <title>Garden Dashboard TXT/DB</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
@@ -22,8 +22,6 @@
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         text-align: center;
       }
-
-      /* Original Gauge needles */
       #needle-moisture {
         transition: transform 0.5s;
         transform-origin: 100px 100px;
@@ -37,16 +35,6 @@
         stroke-width: 2;
         stroke-dasharray: 4;
       }
-
-      .status-on {
-        color: red;
-        font-weight: bold;
-      }
-      .status-off {
-        color: green;
-        font-weight: bold;
-      }
-
       .btn-start {
         background: #28a745;
         color: white;
@@ -55,7 +43,6 @@
         cursor: pointer;
         width: 100%;
         border-radius: 5px;
-        font-size: 16px;
       }
       .btn-stop {
         background: #dc3545;
@@ -65,31 +52,28 @@
         cursor: pointer;
         width: 100%;
         border-radius: 5px;
-        font-size: 16px;
         display: none;
       }
-
       table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 10px;
-        font-size: 12px;
+        font-size: 11px;
       }
       th,
       td {
         border: 1px solid #ddd;
-        padding: 6px;
+        padding: 5px;
         text-align: left;
       }
       select {
         width: 100%;
         padding: 10px;
-        margin: 10px 0;
+        margin: 5px 0;
       }
     </style>
   </head>
   <body>
-    <!-- 1. SETTINGS WINDOW -->
     <div class="window">
       <h3>Nastavenia</h3>
       Limit: <input type="number" id="limit-input" value="500" />
@@ -97,7 +81,6 @@
       <p>Pumpa: <span id="pump-status">--</span></p>
     </div>
 
-    <!-- 2. GAUGE WINDOW -->
     <div class="window">
       <h3>Tachometer</h3>
       <svg viewBox="0 0 200 120" width="300">
@@ -107,8 +90,6 @@
           stroke="#ccc"
           stroke-width="20"
         />
-        <text x="10" y="115" font-size="8">0</text>
-        <text x="175" y="115" font-size="8">1023</text>
         <line
           id="needle-limit"
           x1="100"
@@ -128,43 +109,49 @@
       </svg>
     </div>
 
-    <!-- 3. LIVE GRAPH WINDOW -->
     <div class="window">
       <h3>Live Graf</h3>
       <canvas id="liveChart" height="150"></canvas>
-      <div style="margin-top: 15px">
-        <button
-          id="startBtn"
-          class="btn-start"
-          onclick="toggleMonitoring(true)"
-        >
-          Spustiť Monitoring & Ukladanie
-        </button>
-        <button id="stopBtn" class="btn-stop" onclick="toggleMonitoring(false)">
-          Zastaviť Monitoring
-        </button>
-      </div>
+      <button id="startBtn" class="btn-start" onclick="toggleMonitoring(true)">
+        Štart Monitoring
+      </button>
+      <button id="stopBtn" class="btn-stop" onclick="toggleMonitoring(false)">
+        Zastaviť Monitoring
+      </button>
     </div>
 
-    <!-- 4. DATABASE HISTORY WINDOW -->
+    <!-- WINDOW 4: MYSQL -->
     <div class="window">
-      <h3>História z MySQL</h3>
-      <button onclick="loadSessions()">Obnoviť zoznam sedení</button>
-      <select id="sessionSelect" onchange="loadSessionDetails()">
-        <option value="">-- Vyberte sedenie podľa ID a času --</option>
-      </select>
-      <div style="max-height: 250px; overflow-y: auto">
-        <table id="historyTable">
-          <thead>
-            <tr>
-              <th>Čas</th>
-              <th>Vlhkosť</th>
-              <th>Pumpa</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <h3>História z MySQL Databázy</h3>
+      <button onclick="loadSessions()">Obnoviť MySQL</button>
+      <select id="sessionSelect" onchange="loadSessionDetails()"></select>
+      <table id="historyTable">
+        <thead>
+          <tr>
+            <th>Čas</th>
+            <th>Vlhkosť</th>
+            <th>Pumpa</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- WINDOW 5: TXT FILE -->
+    <div class="window">
+      <h3>História z .txt súboru (JSON riadky)</h3>
+      <button onclick="loadTxtSessions()">Obnoviť .txt zoznam</button>
+      <select id="txtSelect" onchange="loadTxtDetail()"></select>
+      <table id="txtTable">
+        <thead>
+          <tr>
+            <th>Čas</th>
+            <th>Vlhkosť</th>
+            <th>Pumpa</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
     </div>
 
     <script>
@@ -209,6 +196,8 @@
             document.getElementById("startBtn").style.display = "block";
             document.getElementById("stopBtn").style.display = "none";
             clearInterval(liveInterval);
+            loadSessions();
+            loadTxtSessions();
           }
         });
       }
@@ -218,16 +207,12 @@
           .then((r) => r.json())
           .then((data) => {
             document.getElementById("pump-status").innerText = data.pump;
-            document.getElementById("pump-status").className =
-              data.pump === "ON" ? "status-on" : "status-off";
-
             const mDeg = (data.moisture / 1023) * 180 - 90;
             const lDeg = (data.limit / 1023) * 180 - 90;
             document.getElementById("needle-moisture").style.transform =
               `rotate(${mDeg}deg)`;
             document.getElementById("needle-limit").style.transform =
               `rotate(${lDeg}deg)`;
-
             const now = new Date().toLocaleTimeString();
             chart.data.labels.push(now);
             chart.data.datasets[0].data.push(data.moisture);
@@ -241,21 +226,21 @@
           });
       }
 
+      // --- MYSQL HELPERS ---
       function loadSessions() {
         fetch("/list_sessions")
           .then((r) => r.json())
           .then((data) => {
             const sel = document.getElementById("sessionSelect");
-            sel.innerHTML = '<option value="">-- Vyberte sedenie --</option>';
+            sel.innerHTML =
+              '<option value="">-- Vyberte MySQL sedenie --</option>';
             data.forEach((s) => {
-              sel.innerHTML += `<option value="${s.id}">ID: ${s.id} | Start: ${s.start_time}</option>`;
+              sel.innerHTML += `<option value="${s.id}">ID: ${s.id} | ${s.start_time}</option>`;
             });
           });
       }
-
       function loadSessionDetails() {
         const sid = document.getElementById("sessionSelect").value;
-        if (!sid) return;
         fetch("/get_session_details/" + sid)
           .then((r) => r.json())
           .then((data) => {
@@ -267,7 +252,36 @@
           });
       }
 
-      window.onload = loadSessions;
+      // --- TXT HELPERS ---
+      function loadTxtSessions() {
+        fetch("/list_txt_sessions")
+          .then((r) => r.json())
+          .then((data) => {
+            const sel = document.getElementById("txtSelect");
+            sel.innerHTML =
+              '<option value="">-- Vyberte riadok z TXT --</option>';
+            data.forEach((s) => {
+              sel.innerHTML += `<option value="${s.index}">Riadok ${s.index} (Sedenie ${s.id}) - ${s.date}</option>`;
+            });
+          });
+      }
+      function loadTxtDetail() {
+        const idx = document.getElementById("txtSelect").value;
+        fetch("/get_txt_detail/" + idx)
+          .then((r) => r.json())
+          .then((data) => {
+            const tbody = document.querySelector("#txtTable tbody");
+            tbody.innerHTML = "";
+            data.readings.forEach((row) => {
+              tbody.innerHTML += `<tr><td>${row.timestamp}</td><td>${row.moisture}</td><td>${row.pump}</td></tr>`;
+            });
+          });
+      }
+
+      window.onload = function () {
+        loadSessions();
+        loadTxtSessions();
+      };
     </script>
   </body>
 </html>
