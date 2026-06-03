@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
   <head>
-    <title>Garden Dashboard</title>
+    <title>Garden Dashboard - Multi-Graph</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
       body {
@@ -18,7 +18,7 @@
         padding: 20px;
         margin: 10px;
         width: 95%;
-        max-width: 600px;
+        max-width: 700px;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         text-align: center;
       }
@@ -76,6 +76,11 @@
         padding: 5px;
         text-align: left;
       }
+      select {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+      }
     </style>
   </head>
   <body>
@@ -86,33 +91,14 @@
       </button>
     </div>
 
+    <!-- LIVE WINDOW -->
     <div class="window">
-      <h3>Nastavenia & Live</h3>
+      <h3>Live Monitoring</h3>
       Limit: <input type="number" id="limit-input" value="500" />
       <button onclick="updateLimit()">Uložiť</button>
       <p>Moisture: <b id="m-val">0</b> | Pump: <b id="p-stat">OFF</b></p>
-      <canvas id="liveChart" height="150"></canvas>
-      <button
-        id="startBtn"
-        class="btn-start"
-        onclick="toggleMon(true)"
-        style="margin-top: 10px"
-      >
-        Spustiť Monitoring
-      </button>
-      <button
-        id="stopBtn"
-        class="btn-stop"
-        onclick="toggleMon(false)"
-        style="margin-top: 10px"
-      >
-        Zastaviť Monitoring
-      </button>
-    </div>
-
-    <div class="window">
-      <h3>Tachometer</h3>
-      <svg viewBox="0 0 200 120" width="250">
+      <canvas id="liveChart" height="120"></canvas>
+      <svg viewBox="0 0 200 120" width="150">
         <path
           d="M20,100 A80,80 0 0,1 180,100"
           fill="none"
@@ -136,21 +122,27 @@
           transform="rotate(-90)"
         />
       </svg>
+      <br />
+      <button id="startBtn" class="btn-start" onclick="toggleMon(true)">
+        Spustiť Monitoring
+      </button>
+      <button id="stopBtn" class="btn-stop" onclick="toggleMon(false)">
+        Zastaviť Monitoring
+      </button>
     </div>
 
-    <div class="window">
-      <h3>MySQL História</h3>
-      <button onclick="loadSQL()">Obnoviť MySQL</button>
-      <select
-        id="sqlSel"
-        onchange="loadSQLDetail()"
-        style="width: 100%; margin: 10px 0"
-      ></select>
+    <!-- MYSQL HISTORY WINDOW -->
+    <div class="window" style="border-left: 5px solid #007bff">
+      <h3>História: MySQL Databáza</h3>
+      <button onclick="loadSQL()">Obnoviť Zoznam</button>
+      <select id="sqlSel" onchange="loadSQLDetail()"></select>
+      <canvas id="sqlChart" height="120"></canvas>
       <table id="sqlTab">
         <thead>
           <tr>
             <th>Čas</th>
             <th>Vlhkosť</th>
+            <th>Limit</th>
             <th>Pumpa</th>
           </tr>
         </thead>
@@ -158,19 +150,18 @@
       </table>
     </div>
 
-    <div class="window">
-      <h3>.txt História</h3>
-      <button onclick="loadTXT()">Obnoviť .txt</button>
-      <select
-        id="txtSel"
-        onchange="loadTXTDetail()"
-        style="width: 100%; margin: 10px 0"
-      ></select>
+    <!-- TXT HISTORY WINDOW -->
+    <div class="window" style="border-left: 5px solid #6c757d">
+      <h3>História: .txt Súbor</h3>
+      <button onclick="loadTXT()">Obnoviť Zoznam</button>
+      <select id="txtSel" onchange="loadTXTDetail()"></select>
+      <canvas id="txtChart" height="120"></canvas>
       <table id="txtTab">
         <thead>
           <tr>
             <th>Čas</th>
             <th>Vlhkosť</th>
+            <th>Limit</th>
             <th>Pumpa</th>
           </tr>
         </thead>
@@ -180,23 +171,31 @@
 
     <script>
       let hwActive = false;
-      const ctx = document.getElementById("liveChart").getContext("2d");
-      const chart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: [],
-          datasets: [
-            { label: "Vlhkosť", data: [], borderColor: "blue" },
-            {
-              label: "Limit",
-              data: [],
-              borderColor: "red",
-              borderDash: [5, 5],
-            },
-          ],
-        },
-        options: { animation: false, scales: { y: { min: 0, max: 1023 } } },
-      });
+
+      // --- CHART GENERATOR HELPER ---
+      function createChart(id, label) {
+        return new Chart(document.getElementById(id).getContext("2d"), {
+          type: "line",
+          data: {
+            labels: [],
+            datasets: [
+              { label: "Vlhkosť", data: [], borderColor: "blue", tension: 0.3 },
+              {
+                label: "Limit",
+                data: [],
+                borderColor: "red",
+                borderDash: [5, 5],
+                pointRadius: 0,
+              },
+            ],
+          },
+          options: { animation: false, scales: { y: { min: 0, max: 1023 } } },
+        });
+      }
+
+      const liveChart = createChart("liveChart");
+      const sqlChart = createChart("sqlChart");
+      const txtChart = createChart("txtChart");
 
       function toggleHW() {
         hwActive = !hwActive;
@@ -215,19 +214,6 @@
         else location.reload();
       }
 
-      function toggleMon(s) {
-        fetch(s ? "/start_monitoring" : "/stop_monitoring", {
-          method: "POST",
-        }).then(() => {
-          document.getElementById("startBtn").style.display = s
-            ? "none"
-            : "block";
-          document.getElementById("stopBtn").style.display = s
-            ? "block"
-            : "none";
-        });
-      }
-
       function fetchLive() {
         fetch("/get_data")
           .then((r) => r.json())
@@ -238,24 +224,36 @@
               `rotate(${(data.moisture / 1023) * 180 - 90}deg)`;
             document.getElementById("needle-limit").style.transform =
               `rotate(${(data.limit / 1023) * 180 - 90}deg)`;
-            chart.data.labels.push(new Date().toLocaleTimeString());
-            chart.data.datasets[0].data.push(data.moisture);
-            chart.data.datasets[1].data.push(data.limit);
-            if (chart.data.labels.length > 20) {
-              chart.data.labels.shift();
-              chart.data.datasets[0].data.shift();
-              chart.data.datasets[1].data.shift();
-            }
-            chart.update();
+
+            updateGraph(
+              liveChart,
+              new Date().toLocaleTimeString(),
+              data.moisture,
+              data.limit,
+              true,
+            );
           });
       }
 
+      function updateGraph(chartObj, label, m, l, isLive) {
+        chartObj.data.labels.push(label);
+        chartObj.data.datasets[0].data.push(m);
+        chartObj.data.datasets[1].data.push(l);
+        if (isLive && chartObj.data.labels.length > 20) {
+          chartObj.data.labels.shift();
+          chartObj.data.datasets[0].data.shift();
+          chartObj.data.datasets[1].data.shift();
+        }
+        chartObj.update();
+      }
+
+      // --- MYSQL LOADING ---
       function loadSQL() {
         fetch("/list_sessions")
           .then((r) => r.json())
           .then((data) => {
             let s = document.getElementById("sqlSel");
-            s.innerHTML = "<option>-- Vyberte --</option>";
+            s.innerHTML = "<option>-- Vyberte MySQL Sedenie --</option>";
             data.forEach((x) => {
               s.innerHTML += `<option value="${x.id}">ID: ${x.id} | ${x.start_time}</option>`;
             });
@@ -268,18 +266,29 @@
           .then((data) => {
             let b = document.querySelector("#sqlTab tbody");
             b.innerHTML = "";
+            sqlChart.data.labels = [];
+            sqlChart.data.datasets[0].data = [];
+            sqlChart.data.datasets[1].data = [];
             data.forEach((r) => {
-              b.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.moisture}</td><td>${r.pump_state}</td></tr>`;
+              b.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.moisture}</td><td>${r.reg_limit}</td><td>${r.pump_state}</td></tr>`;
+              updateGraph(
+                sqlChart,
+                r.timestamp,
+                r.moisture,
+                r.reg_limit,
+                false,
+              );
             });
           });
       }
 
+      // --- TXT LOADING ---
       function loadTXT() {
         fetch("/list_txt_sessions")
           .then((r) => r.json())
           .then((data) => {
             let s = document.getElementById("txtSel");
-            s.innerHTML = "<option>-- Vyberte --</option>";
+            s.innerHTML = "<option>-- Vyberte TXT Riadok --</option>";
             data.forEach((x) => {
               s.innerHTML += `<option value="${x.index}">Riadok ${x.index} | ${x.date}</option>`;
             });
@@ -292,12 +301,28 @@
           .then((data) => {
             let b = document.querySelector("#txtTab tbody");
             b.innerHTML = "";
+            txtChart.data.labels = [];
+            txtChart.data.datasets[0].data = [];
+            txtChart.data.datasets[1].data = [];
             data.readings.forEach((r) => {
-              b.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.moisture}</td><td>${r.pump}</td></tr>`;
+              b.innerHTML += `<tr><td>${r.timestamp}</td><td>${r.moisture}</td><td>${r.limit}</td><td>${r.pump}</td></tr>`;
+              updateGraph(txtChart, r.timestamp, r.moisture, r.limit, false);
             });
           });
       }
 
+      function toggleMon(s) {
+        fetch(s ? "/start_monitoring" : "/stop_monitoring", {
+          method: "POST",
+        }).then(() => {
+          document.getElementById("startBtn").style.display = s
+            ? "none"
+            : "block";
+          document.getElementById("stopBtn").style.display = s
+            ? "block"
+            : "none";
+        });
+      }
       function updateLimit() {
         fetch("/set_limit", {
           method: "POST",
