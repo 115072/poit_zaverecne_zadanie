@@ -26,51 +26,67 @@ session_buffer = []
 def background_worker():
     global latest_moisture, pump_status, is_recording, current_session_id, session_buffer, hardware_enabled
     ser = None
+    last_sent_cmd = "" 
+    last_hw_state = False # To track if we already sent 'A' or 'Q'
+
     while True:
         try:
             if ser is None:
-                ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+                ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
                 time.sleep(2)
-            
+
             if hardware_enabled:
-                ser.write(b'A') # Wake up Arduino
+                # Only send 'A' once when toggled
+                if last_hw_state == False:
+                    ser.write(b'A')
+                    last_hw_state = True
+                
                 if ser.in_waiting > 0:
-                    line = ser.readline().decode('utf-8').strip()
-                    if line.isdigit():
-                        latest_moisture = int(line)
-                        if latest_moisture < regulation_limit:
-                            ser.write(b'1')
-                            pump_status = "ON"
-                        else:
-                            ser.write(b'0')
-                            pump_status = "OFF"
-                        
-                        if is_recording:
-                            save_reading_db(current_session_id, latest_moisture, pump_status, regulation_limit)
-                            session_buffer.append({
-                                "timestamp": time.strftime('%H:%M:%S'), 
-                                "moisture": latest_moisture, 
-                                "pump": pump_status,
-                                "limit": regulation_limit 
-                            })
+                    raw_data = ser.readline().decode('utf-8', errors='ignore').strip()
+                    
+                    if "<" in raw_data and ">" in raw_data:
+                        try:
+                            clean_val = raw_data.split("<")[1].split(">")[0]
+                            latest_moisture = int(clean_val)
+                            
+                            
+                            if latest_moisture < regulation_limit:
+                                if last_sent_cmd != "1":
+                                    ser.write(b'1')
+                                    last_sent_cmd = "1"
+                                pump_status = "ON"
+                            else:
+                                if last_sent_cmd != "0":
+                                    ser.write(b'0')
+                                    last_sent_cmd = "0"
+                                pump_status = "OFF"
+
+                            if is_recording:
+                                save_reading_db(current_session_id, latest_moisture, pump_status, regulation_limit)
+                                session_buffer.append({
+                                    "timestamp": time.strftime('%H:%M:%S'), 
+                                    "moisture": latest_moisture, 
+                                    "pump": pump_status,
+                                    "limit": regulation_limit 
+                                })
+                        except (ValueError, IndexError):
+                            pass
             else:
-                if ser: ser.write(b'Q') # Sleep Arduino
+                # Only send 'Q' once when toggled off
+                if last_hw_state == True:
+                    if ser: ser.write(b'Q')
+                    last_hw_state = False
+                
                 latest_moisture = 0
                 pump_status = "OFF"
-            time.sleep(1)
-        except:
+                last_sent_cmd = ""
+
+            time.sleep(0.1) 
+        except Exception as e:
+            print(f"Serial Error: {e}")
             ser = None
             time.sleep(2)
 
-def save_reading_db(sid, val, pmp, lim):
-    try:
-        conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO readings (session_id, moisture, pump_state, reg_limit) VALUES (%s, %s, %s, %s)", (sid, val, pmp, lim))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"DB Error: {e}")
 
 # --- ROUTES ---
 @app.route('/')
