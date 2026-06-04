@@ -50,7 +50,7 @@ def background_worker():
                             latest_moisture = int(clean_val)
                             
                             
-                            if latest_moisture < regulation_limit:
+                            if latest_moisture > regulation_limit:
                                 if last_sent_cmd != "1":
                                     ser.write(b'1')
                                     last_sent_cmd = "1"
